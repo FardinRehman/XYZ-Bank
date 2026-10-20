@@ -115,3 +115,4 @@ Deploy the API and frontend separately or behind one reverse proxy.
 - Human transfer is implemented as an explicit telephony action only when configured, but must be tested with the actual trunk/provider.
 - The call webhook accepts/rejects calls based on configuration and attaches a server-side control WebSocket for tool handling. Provider support and project enablement are prerequisites.
 - Transcript storage is off by default. Call metadata and tool audit events are retained; production retention must be configured to bank policy.
+"# XYZ-Bank" 
