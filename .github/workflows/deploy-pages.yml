@@ -35,7 +35,10 @@ jobs:
         run: npm ci
 
       - name: Build web application
-        run: npm --workspace apps/web run build
+        run: |
+          npm --workspace apps/web run build
+          touch apps/web/dist/.nojekyll
+          cp apps/web/dist/index.html apps/web/dist/404.html
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
