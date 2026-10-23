@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Activity, ArrowDownLeft, ArrowUpRight, BookOpen, Building2, CheckCircle2, ChevronDown, Clock3, FileText, Headphones, LayoutDashboard, LogOut, Menu, PhoneCall, Search, ShieldCheck, Ticket, Users, Wifi, AlertTriangle, RefreshCw, Plus, X, Mic, MicOff, PhoneOff, Send, Volume2, VolumeX, Sparkles, Key, ExternalLink, Check, Languages, Globe } from 'lucide-react';
-import { api, login, getToken, type User, startSimulationCall, sendSimulationMessage, sendSimulationAudio, endSimulationCall, synthesizeSpeechApi, type SimCall, getStoredGeminiKey, setStoredGeminiKey, getGeminiStatus, testGeminiApiKey } from './api';
+import { api, login, getToken, type User, startSimulationCall, sendSimulationMessage, sendSimulationAudio, endSimulationCall, synthesizeSpeechApi, type SimCall, getStoredGeminiKey, setStoredGeminiKey, getGeminiStatus, testGeminiApiKey, isStandaloneMode } from './api';
 
 type Summary = { calls: { total: number; active: number; last24h: number; transferred: number }; tickets: { open: number }; knowledge: { published: number }; failures: { failures: number }; dataMode: string };
 type Call = { id: string; provider_call_id: string | null; status: string; from_number_masked: string | null; to_number_masked: string | null; started_at: string; duration_seconds: number | null; resolution: string | null; escalation_reason: string | null };
@@ -231,7 +231,10 @@ export default function App() {
             >
               <PhoneCall size={14} /> Talk with AI Call
             </button>
-            <span className="env-pill"><span />Development environment</span>
+            <span className="env-pill">
+              <span style={{ background: isStandaloneMode() ? '#10b981' : undefined }} />
+              {isStandaloneMode() ? 'GitHub Pages Live Preview' : 'Operational Environment'}
+            </span>
             <button className="icon-button" onClick={() => void load()} title="Refresh"><RefreshCw size={17} /></button>
             <div className="top-avatar">{user.displayName.slice(0, 1).toUpperCase()}</div>
           </div>
@@ -1921,6 +1924,36 @@ function Login({ onSubmit, error }: { onSubmit: (e: FormEvent<HTMLFormElement>) 
             />
           </label>
           <button className="button primary login-button">Sign in securely <ArrowUpRight size={16} /></button>
+          <button
+            type="button"
+            className="button secondary"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              fontWeight: 600,
+              background: '#f8fafc',
+              borderColor: '#cbd5e1',
+              color: '#1e293b'
+            }}
+            onClick={() => {
+              const fakeForm = document.createElement('form');
+              const emailInput = document.createElement('input');
+              emailInput.name = 'email';
+              emailInput.value = 'admin@xyzbank.local';
+              fakeForm.appendChild(emailInput);
+              const passInput = document.createElement('input');
+              passInput.name = 'password';
+              passInput.value = 'ChangeThisPassword123!';
+              fakeForm.appendChild(passInput);
+              onSubmit({ preventDefault: () => { }, currentTarget: fakeForm } as any);
+            }}
+          >
+            <Sparkles size={16} color="#2563eb" /> Instant Live Demo Access
+          </button>
           <div className="login-disclaimer"><ShieldCheck size={14} /> Authorized staff only. Access is monitored and logged.</div>
           <div className="dev-hint" style={{ display: 'flex', flexDirection: 'column', gap: '5px', background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
             <b style={{ fontSize: '10px' }}>Demo Admin Credentials:</b>

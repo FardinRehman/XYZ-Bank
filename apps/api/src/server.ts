@@ -14,7 +14,12 @@ const app=express();
 app.disable('x-powered-by');app.set('trust proxy', env.NODE_ENV==='production'?1:false);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: false, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'x-gemini-api-key'] }));
-app.use('/api/telephony',express.raw({type:'application/json',limit:'256kb'}),telephonyRouter);
+app.use(
+  '/api/telephony',
+  express.raw({ type: 'application/json', limit: '256kb' }),
+  express.urlencoded({ extended: true, limit: '256kb' }),
+  telephonyRouter
+);
 app.use(express.json({limit:'25mb'}));
 const isDev = env.NODE_ENV !== 'production';
 const generalLimiter = rateLimit({

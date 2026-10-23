@@ -17,6 +17,9 @@ const schema = z.object({
   OPENAI_REALTIME_VOICE: z.string().default('marin'),
   OPENAI_SIP_ENABLED: z.string().default('false'),
   GEMINI_API_KEY: z.string().optional().default(''),
+  TWILIO_ACCOUNT_SID: z.string().optional().default(''),
+  TWILIO_AUTH_TOKEN: z.string().optional().default(''),
+  TWILIO_PHONE_NUMBER: z.string().optional().default(''),
   HUMAN_TRANSFER_URI: z.string().default(''),
   STORE_TRANSCRIPTS: z.string().default('false')
 });
