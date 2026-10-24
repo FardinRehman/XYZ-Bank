@@ -931,6 +931,10 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
   const handleSendAudio = useCallback(async (audioBlob: Blob, manual = false) => {
     const currentCall = callRef.current;
     if (!currentCall || loadingRef.current || callEndedInfo) return;
+
+    // Capture spoken text before resetting state
+    const capturedSpokenText = latestSpeechTextRef.current.trim() || interimText.trim() || input.trim();
+
     stopListeningOnly();
     setInput('');
     setInterimText('');
@@ -957,8 +961,7 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
       }));
 
       const mimeType = audioBlob.type || 'audio/webm';
-      const spokenText = latestSpeechTextRef.current.trim() || input.trim();
-      const res = await sendSimulationAudio(currentCall.callId, audioBase64, mimeType, geminiKey || undefined, history, manual, spokenText);
+      const res = await sendSimulationAudio(currentCall.callId, audioBase64, mimeType, geminiKey || undefined, history, manual, capturedSpokenText);
 
       if (res.ignored) {
         // Automated silence check returned no human words: quietly resume listening
@@ -972,7 +975,7 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
       }
 
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const userText = res.transcribedText || '(Voice Question)';
+      const userText = res.transcribedText || capturedSpokenText || '(Voice Question)';
       setMessages(prev => [
         ...prev,
         { sender: 'caller', text: userText, time },
@@ -1004,11 +1007,11 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [callEndedInfo, stopListeningOnly, messages, geminiKey, speakText, autoListen, onCallUpdated, transferred]);
+  }, [callEndedInfo, stopListeningOnly, messages, geminiKey, speakText, autoListen, onCallUpdated, transferred, interimText, input]);
 
   const stopListeningAndSubmit = useCallback(async (manual = false) => {
-    // 1. First priority: Text from speech recognition or typed input
-    const textToSubmit = latestSpeechTextRef.current.trim() || input.trim();
+    // 1. First priority: Text from speech recognition, interim caption, or typed input
+    const textToSubmit = latestSpeechTextRef.current.trim() || interimText.trim() || input.trim();
     if (textToSubmit) {
       stopListeningOnly();
       setSpeechStatus('Processing your question...');
@@ -1033,11 +1036,28 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
     const mimeType = recordedChunks[0]?.type || 'audio/webm';
     const audioBlob = recordedChunks.length > 0 ? new Blob(recordedChunks, { type: mimeType }) : null;
 
-    if (audioBlob && audioBlob.size > 1000) {
-      setSpeechStatus('Transcribing your speech with Gemini AI...');
+    if (audioBlob && audioBlob.size > 200) {
+      setSpeechStatus('Processing your voice question...');
       await handleSendAudio(audioBlob, manual);
     } else {
-      // Quiet ambient sound: resume listening smoothly
+      if (manual) {
+        // User explicitly tapped "Done Speaking (Send)", but no speech was captured
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const fallbackText = "I couldn't hear any audio from your microphone. Please speak into your microphone or type your question in the text box below.";
+        setMessages(prev => [
+          ...prev,
+          { sender: 'caller', text: '(Microphone audio)', time },
+          { sender: 'ai', text: fallbackText, time, engine: 'Sofia AI Assistant' }
+        ]);
+        setSpeechStatus('');
+        speakText(fallbackText, () => {
+          if (autoListen && !transferred) {
+            setTimeout(() => startListeningRef.current(), 350);
+          }
+        });
+        return;
+      }
+      // Quiet ambient sound on automatic silence: resume listening smoothly
       hasSpokenRef.current = false;
       lastSoundTimeRef.current = 0;
       speechStartTimeRef.current = 0;
@@ -1045,7 +1065,7 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
         setTimeout(() => startListeningRef.current(), 150);
       }
     }
-  }, [input, stopListeningOnly, handleSendMessage, handleSendAudio, isMuted, transferred]);
+  }, [input, interimText, stopListeningOnly, handleSendMessage, handleSendAudio, isMuted, transferred, speakText, autoListen]);
 
   const startListening = useCallback(async () => {
     if (callEndedInfo || isMuted) return;
@@ -1738,18 +1758,17 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
                   )}
                 </div>
 
-                {/* Manual Done Speaking action button - always available while listening */}
-                {isListening && (
-                  <button
-                    type="button"
-                    className="sim-done-speaking-btn"
-                    onClick={() => void stopListeningAndSubmit()}
-                    title="Tap when finished speaking to submit your voice immediately"
-                  >
-                    <Sparkles size={13} />
-                    <span>Done Speaking (Send)</span>
-                  </button>
-                )}
+                {/* Manual Done Speaking action button - always accessible when connected */}
+                <button
+                  type="button"
+                  className="sim-done-speaking-btn"
+                  onClick={() => void stopListeningAndSubmit(true)}
+                  disabled={loading}
+                  title="Tap when finished speaking or typing to send your question immediately"
+                >
+                  <Sparkles size={14} />
+                  <span>{loading ? 'Processing Question...' : 'Done Speaking (Send)'}</span>
+                </button>
 
                 {/* Direct Text Input Bar so caller can type if mic is quiet */}
                 <form
