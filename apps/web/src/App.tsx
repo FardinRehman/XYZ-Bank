@@ -507,43 +507,56 @@ function cleanTextForSpeech(raw: string): string {
     .trim();
 }
 
+export function isFemaleVoice(v: SpeechSynthesisVoice): boolean {
+  const name = v.name.toLowerCase();
+  // Filter out all known male voice names
+  if (/(david|mark|george|richard|james|guy|stefan|paul|brian|ravi|hemant|prabhat|madhur|male|man)/i.test(name) && !name.includes('female')) {
+    return false;
+  }
+  // Prioritize female voice names
+  if (/(zira|jenny|aria|sonia|neerja|heera|samantha|victoria|karen|moira|fiona|swara|kalpana|female|girl|sofia)/i.test(name)) {
+    return true;
+  }
+  if (name.includes('google us english') || name.includes('google uk english female')) return true;
+  return !name.includes('male');
+}
+
 function findBestVoiceForLanguage(voices: SpeechSynthesisVoice[], langCode: string): SpeechSynthesisVoice | null {
   if (!voices || !voices.length) return null;
+  const femaleVoices = voices.filter(isFemaleVoice);
+  const pool = femaleVoices.length > 0 ? femaleVoices : voices;
   const langPrefix = langCode.split('-')[0].toLowerCase();
 
-  // 1. Exact match with Natural / Online / Neural / Google
-  const naturalMatch = voices.find(v =>
+  // 1. Natural / Neural / HD female voice matching exact language (e.g. Neerja for en-IN, Jenny/Aria for en-US)
+  const naturalMatch = pool.find(v =>
     v.lang.toLowerCase() === langCode.toLowerCase() &&
     /natural|neural|online|google/i.test(v.name)
   );
   if (naturalMatch) return naturalMatch;
 
-  // 2. Exact language match
-  const exactMatch = voices.find(v => v.lang.toLowerCase() === langCode.toLowerCase());
+  // 2. Exact language match in female pool
+  const exactMatch = pool.find(v => v.lang.toLowerCase() === langCode.toLowerCase());
   if (exactMatch) return exactMatch;
 
-  // 3. Prefix match with Natural (e.g. hi, ta, te)
-  const prefixNatural = voices.find(v =>
-    v.lang.toLowerCase().startsWith(langPrefix) &&
-    /natural|neural|online|google/i.test(v.name)
-  );
-  if (prefixNatural) return prefixNatural;
+  // 3. Natural / Neural / HD female English voice (Jenny, Aria, Google US English - highest quality)
+  const naturalEn = pool.find(v => /natural|neural|online|google/i.test(v.name) && v.lang.startsWith('en'));
+  if (naturalEn) return naturalEn;
 
-  // 4. Any prefix match
-  const anyPrefix = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
-  if (anyPrefix) return anyPrefix;
+  // 4. Any female voice matching language prefix
+  const prefixMatch = pool.find(v => v.lang.toLowerCase().startsWith(langPrefix));
+  if (prefixMatch) return prefixMatch;
 
-  // 5. If Indian language and none found, check for Indian English (Neerja, Heera, etc.)
+  // 5. If Indian language and none found, check for Indian English (Neerja, Heera)
   if (langCode.endsWith('-IN')) {
-    const indianVoice = voices.find(v => /(neerja|heera|india|en-in|hi-in)/i.test(v.name + v.lang));
+    const indianVoice = pool.find(v => /(neerja|heera|india|en-in|hi-in)/i.test(v.name + v.lang));
     if (indianVoice) return indianVoice;
   }
 
-  // 6. Natural English fallback
-  const naturalEn = voices.find(v => /natural|neural/i.test(v.name) && v.lang.startsWith('en'));
-  if (naturalEn) return naturalEn;
+  // 6. Any English female voice (Zira, Samantha, etc.)
+  const enMatch = pool.find(v => v.lang.startsWith('en'));
+  if (enMatch) return enMatch;
 
-  return voices.find(v => v.lang.startsWith('en')) || voices[0] || null;
+  return pool[0] || null;
 }
 
 function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; onCallUpdated: () => void }) {
@@ -670,7 +683,9 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utteranceRef.current = utterance;
 
-      const voiceToUse = selectedVoice || findBestVoiceForLanguage(voices, selectedLang);
+      const voiceToUse = (selectedVoice && isFemaleVoice(selectedVoice))
+        ? selectedVoice
+        : findBestVoiceForLanguage(voices, selectedLang);
       if (voiceToUse) {
         utterance.voice = voiceToUse;
         utterance.lang = voiceToUse.lang || selectedLang;
@@ -679,7 +694,7 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
       }
 
       utterance.rate = 1.0;
-      utterance.pitch = 1.02;
+      utterance.pitch = 1.06;
       utterance.volume = 1.0;
 
       let finished = false;
@@ -942,7 +957,8 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
       }));
 
       const mimeType = audioBlob.type || 'audio/webm';
-      const res = await sendSimulationAudio(currentCall.callId, audioBase64, mimeType, geminiKey || undefined, history, manual);
+      const spokenText = latestSpeechTextRef.current.trim() || input.trim();
+      const res = await sendSimulationAudio(currentCall.callId, audioBase64, mimeType, geminiKey || undefined, history, manual, spokenText);
 
       if (res.ignored) {
         // Automated silence check returned no human words: quietly resume listening
@@ -1575,10 +1591,10 @@ function CallSimulatorModal({ onClose, onCallUpdated }: { onClose: () => void; o
                 }}
               >
                 {voices
-                  .filter(v => v.lang.toLowerCase().startsWith(selectedLang.split('-')[0].toLowerCase()) || v.lang.startsWith('en'))
+                  .filter(isFemaleVoice)
                   .map(v => (
                     <option key={v.name} value={v.name}>
-                      {v.name.replace(/Microsoft |Online \(Natural\) |Google /g, '').slice(0, 22)} ({v.lang})
+                      Sofia ({v.name.replace(/Microsoft |Online \(Natural\) |Google /g, '').slice(0, 18)})
                     </option>
                   ))}
               </select>

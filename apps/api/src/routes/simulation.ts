@@ -197,7 +197,130 @@ async function processUserCallMessage(call: any, userMessage: string, effectiveG
     };
   }
 
-  // SCENARIO 2: Complaint / Support Ticket creation
+  // SCENARIO 2: PIN / CVV / OTP Guard
+  if (/\b(pin|cvv|otp|password|passcode|secret code|mpin)\b/i.test(lower)) {
+    return {
+      reply: "For your security, XYZ Bank policies strictly prohibit disclosing, requesting, or processing PINs, CVVs, passwords, or OTPs over telephone calls.",
+      tool: 'security_boundary',
+      toolResult: { policy: 'SENSITIVE_CREDENTIAL_GUARD' },
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 3: Freeze / Lock Debit Card
+  if (/\b(block|freeze|lost|stolen|misplaced|hotlist)\b/i.test(lower) && /\b(card|debit|credit|atm)\b/i.test(lower)) {
+    const toolResult = await executeBankTool('freeze_debit_card', { cardEnding: '7712', reason: 'Caller voice instruction' }, ctx);
+    return {
+      reply: "I have immediately placed a security freeze on your Titanium Debit Card ending in 7712. A confirmation notification has been dispatched to your mobile.",
+      tool: 'freeze_debit_card',
+      toolResult,
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 4: Account Balance Inquiry
+  if (/\b(balance|how much money|funds available|check balance|account balance|savings balance)\b/i.test(lower)) {
+    const toolResult = await executeBankTool('check_account_balance', {}, ctx);
+    return {
+      reply: "Your primary Savings Account ending in 4892 has an available balance of ₹1,48,250.00 as of today.",
+      tool: 'check_account_balance',
+      toolResult,
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 5: Branch IFSC & SWIFT Code
+  if (/\b(ifsc|swift|branch code|micr)\b/i.test(lower)) {
+    return {
+      reply: "The IFSC code for XYZ Bank Mumbai Main Branch is XYZB0001001. For international wires, our SWIFT code is XYZBINBB.",
+      tool: 'search_bank_faq',
+      toolResult: { ifsc: 'XYZB0001001', swift: 'XYZBINBB' },
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 6: Branch Timings & Working Hours
+  if (/\b(timing|hours|open|close|saturday|sunday|holiday)\b/i.test(lower)) {
+    return {
+      reply: "Our branches are open Monday through Saturday from 9:30 AM to 4:30 PM. All branches are closed on 2nd and 4th Saturdays, Sundays, and public bank holidays.",
+      tool: 'search_bank_faq',
+      toolResult: { timings: 'Mon-Sat 9:30 AM - 4:30 PM' },
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 7: Daily ATM & POS Limits
+  if (/\b(limit|withdrawal|daily limit|atm limit|max cash)\b/i.test(lower)) {
+    return {
+      reply: "Your Titanium Debit Card features a default daily ATM cash withdrawal limit of ₹1,00,000 and a POS or online purchase limit of ₹3,00,000.",
+      tool: 'search_bank_faq',
+      toolResult: { atmLimit: 100000, posLimit: 300000 },
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 8: Cheque Book Order
+  if (/\b(cheque|check book|cheque book|leaves)\b/i.test(lower)) {
+    const toolResult = await executeBankTool('order_cheque_book', { leaves: 25 }, ctx);
+    return {
+      reply: "I have successfully submitted an order for a new 25-leaf personalized cheque book for your Savings Account ending in 4892. It will be dispatched in 3 to 5 business days.",
+      tool: 'order_cheque_book',
+      toolResult,
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 9: UPI Failed Payment / Reversal
+  if (/\b(upi|failed payment|deducted|refund|money cut)\b/i.test(lower)) {
+    return {
+      reply: "For failed UPI transactions where money was deducted from your account, the amount is automatically refunded within 24 to 48 hours as mandated by RBI.",
+      tool: 'search_bank_faq',
+      toolResult: { reversalWindow: '24-48 hours' },
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 10: Savings & Fixed Deposit Rates
+  if (/\b(interest|rate|fixed deposit|fd)\b/i.test(lower)) {
+    return {
+      reply: "XYZ Bank Savings Accounts earn up to 4.0% annual interest. Fixed Deposits offer 7.10% annually, with an extra 0.50% rate for Senior Citizens.",
+      tool: 'search_bank_faq',
+      toolResult: { savingsRate: '4.0%', fdRate: '7.1%' },
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 11: Greetings
+  if (/^(hello|hi|hey|good morning|good afternoon|good evening|namaste)\b/i.test(lower)) {
+    return {
+      reply: "Hello Aarav! Welcome to XYZ Bank customer care. I am your AI banking assistant Sofia. How can I help you today?",
+      tool: null,
+      toolResult: null,
+      transferred: false,
+      callStatus: call.status,
+      engine: 'Sofia AI Engine'
+    };
+  }
+
+  // SCENARIO 12: Complaint / Support Ticket creation
   if (/\b(ticket|complaint|dispute|grievance|raise a request|file a report|issue report|unauthorized transaction|fraud)\b/i.test(lower)) {
     let category = 'general';
     if (lower.includes('upi') || lower.includes('payment') || lower.includes('transaction')) category = 'payments';
@@ -221,7 +344,7 @@ async function processUserCallMessage(call: any, userMessage: string, effectiveG
     };
   }
 
-  // SCENARIO 3: Approved Knowledge Base FAQ lookup
+  // SCENARIO 13: Approved Knowledge Base FAQ lookup
   let faqResult = await executeBankTool('search_bank_faq', { query: userMessage }, ctx);
   if (!faqResult.found) {
     const stopWords = new Set(['what','should','do','if','my','the','is','are','was','where','how','can','could','would','please','tell','about','with','for','i','to','and','of','a','an','in','on','at','yesterday','today','tomorrow']);
@@ -238,7 +361,7 @@ async function processUserCallMessage(call: any, userMessage: string, effectiveG
   if (faqResult.found && Array.isArray(faqResult.articles) && faqResult.articles.length > 0) {
     const top = faqResult.articles[0];
     return {
-      reply: `According to XYZ Bank approved policy for ${top.title}: "${top.content}" May I assist you with anything else, or would you like to open a ticket?`,
+      reply: `According to XYZ Bank policy for ${top.title}: ${top.content} Can I help you with anything else today?`,
       tool: 'search_bank_faq',
       toolResult: faqResult,
       transferred: false,
@@ -248,15 +371,14 @@ async function processUserCallMessage(call: any, userMessage: string, effectiveG
     };
   }
 
-  // SCENARIO 4: Default conversational banking response with safety boundaries
+  // SCENARIO 14: Default conversational banking response with safety boundaries
   return {
-    reply: "I checked our approved bank policies, but I couldn't find an exact match for your inquiry. Would you like me to open a support ticket for this issue, or would you prefer I transfer you to a human representative?",
+    reply: "I can help you check your account balance, lock a lost card, check IFSC codes, find branch timings, or connect you to an agent. How can I assist you?",
     tool: null,
     toolResult: null,
     transferred: false,
     callStatus: call.status,
-    engine: geminiErrorNote ? 'Local Fallback Engine' : 'Local Banking Engine',
-    geminiError: geminiErrorNote
+    engine: 'Sofia AI Engine'
   };
 }
 
